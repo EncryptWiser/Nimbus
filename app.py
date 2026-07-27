@@ -73,7 +73,7 @@ TEMP_STORAGE = os.path.join(APP_ROOT, "temp_storage")
 # Example: https://discord.com/api/webhooks/1234567890/AbCdEfGhIjK...
 DISCORD_WEBHOOK_URL = os.environ.get(
     "DISCORD_WEBHOOK_URL",
-    "https://discord.com/api/webhooks/1531408682372567130/XzIVpFSK4V_F_k9U7gQGQgVpWboM4fgGC0mRVzejjD7-BB2ZhlxeVkb3B-FiUrSCgl-O",
+    "https://discord.com/api/webhooks/REPLACE_WITH_ID/REPLACE_WITH_TOKEN",
 )
 
 # Discord's free-tier attachment cap for a normal webhook post is 10 MB.
