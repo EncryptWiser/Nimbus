@@ -11,36 +11,6 @@ Nimbus gives you a Google Photos/Dropbox-style interface — galleries, nested f
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](#contributing)
 [![Stars](https://img.shields.io/github/stars/EncryptWiser/Nimbus?style=social)](https://github.com/EncryptWiser/Nimbus/stargazers)
 
----
-
-## Table of contents
-
-- [Why Nimbus](#why-nimbus)
-- [Features](#features)
-- [Architecture](#architecture)
-  - [System overview](#system-overview)
-  - [Upload flow (chunking + live progress)](#upload-flow-chunking--live-progress)
-  - [Data model](#data-model)
-  - [Folder model](#folder-model)
-- [Tech stack](#tech-stack)
-- [Getting started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [1. Clone and install](#1-clone-and-install)
-  - [2. Create a Discord webhook](#2-create-a-discord-webhook)
-  - [3. Configure the webhook URL](#3-configure-the-webhook-url)
-  - [4. Run it](#4-run-it)
-- [Using Nimbus](#using-nimbus)
-- [API reference](#api-reference)
-- [Project structure](#project-structure)
-- [Configuration](#configuration)
-- [Testing](#testing)
-- [Known limitations](#known-limitations)
-- [Security & Discord ToS considerations](#security--discord-tos-considerations)
-- [Roadmap](#roadmap)
-- [Contributing](#contributing)
-- [License](#license)
-
----
 
 ## Why Nimbus
 
