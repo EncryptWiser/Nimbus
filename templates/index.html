@@ -1,0 +1,2011 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Nimbus — Cloud Storage</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+<style>
+  /* =========================================================
+     DESIGN TOKENS
+     ========================================================= */
+  :root{
+    --bg:            #0B1220;
+    --sidebar:       #111827;
+    --card:          #1B2638;
+    --card-hover:    #212f45;
+    --accent:        #3B82F6;
+    --accent-2:      #6366F1;
+    --text-primary:  #E5E9F0;
+    --text-secondary:#8B96A8;
+    --border:        #24304a;
+    --danger:        #EF4444;
+    --success:       #22C55E;
+    --radius:        18px;
+    --radius-sm:     10px;
+    --transition:     0.3s ease;
+  }
+
+  *{ box-sizing:border-box; margin:0; padding:0; }
+
+  body{
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+    overflow: hidden;
+    height: 100vh;
+  }
+
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb{ background:#2a3650; border-radius:8px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+
+  a{ color:inherit; text-decoration:none; }
+  button{ font-family:inherit; cursor:pointer; border:none; background:none; color:inherit; }
+
+  /* =========================================================
+     APP SHELL
+     ========================================================= */
+  .app{
+    display:grid;
+    grid-template-columns: 260px 1fr;
+    height:100vh;
+  }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    background: var(--sidebar);
+    border-right: 1px solid var(--border);
+    display:flex;
+    flex-direction:column;
+    padding: 24px 16px;
+  }
+
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding: 4px 8px 28px 8px;
+  }
+  .brand-icon{
+    width:34px; height:34px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display:flex; align-items:center; justify-content:center;
+    font-size:16px;
+    box-shadow: 0 4px 14px rgba(59,130,246,0.35);
+  }
+  .brand-name{ font-weight:700; font-size:18px; letter-spacing:0.2px; }
+  .brand-sub{ font-size:11px; color:var(--text-secondary); }
+
+  .nav-section-label{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color: var(--text-secondary);
+    padding: 14px 12px 8px;
+  }
+
+  .nav-item{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding: 11px 12px;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size:14px;
+    font-weight:500;
+    transition: background var(--transition), color var(--transition);
+    position:relative;
+  }
+  .nav-item i{ width:18px; text-align:center; font-size:15px; }
+  .nav-item:hover{ background: rgba(255,255,255,0.04); color: var(--text-primary); }
+  .nav-item.active{
+    background: linear-gradient(90deg, rgba(59,130,246,0.18), rgba(99,102,241,0.05));
+    color: #fff;
+  }
+  .nav-item.active i{ color: var(--accent); }
+  .nav-item .count-pill{
+    margin-left:auto;
+    font-size:11px;
+    background: rgba(255,255,255,0.08);
+    padding: 2px 8px;
+    border-radius: 20px;
+    color: var(--text-secondary);
+  }
+
+  /* Dynamic "Uploading (X)" nav item */
+  .nav-item.uploading{
+    display:none; /* toggled via JS when activeUploads > 0 */
+    color: var(--accent);
+    background: rgba(59,130,246,0.1);
+    border: 1px solid rgba(59,130,246,0.25);
+  }
+  .nav-item.uploading.show{ display:flex; }
+  .nav-item.uploading i{
+    color: var(--accent);
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin{ to{ transform: rotate(360deg); } }
+  .nav-item.uploading .pulse-dot{
+    width:8px; height:8px;
+    border-radius:50%;
+    background: var(--accent);
+    margin-left:auto;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes pulse{
+    0%,100%{ box-shadow: 0 0 0 0 rgba(59,130,246,0.6); opacity:1; }
+    50%{ box-shadow: 0 0 0 6px rgba(59,130,246,0); opacity:0.7; }
+  }
+
+  .storage-widget{
+    margin-top:auto;
+    padding: 16px;
+    background: rgba(255,255,255,0.03);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+  .storage-widget-header{ display:flex; align-items:center; justify-content:space-between; }
+  .storage-widget-title{
+    font-size:12px; font-weight:600; color: var(--text-secondary);
+    display:flex; align-items:center; gap:7px;
+  }
+  .storage-widget-title i{ color: var(--accent); font-size:13px; }
+  .storage-widget-badge{
+    font-size:10px; font-weight:700; color:#4ade80;
+    background: rgba(34,197,94,0.12);
+    border: 1px solid rgba(34,197,94,0.35);
+    padding: 2px 10px;
+    border-radius: 20px;
+  }
+  .storage-widget-total-row{ display:flex; align-items:baseline; justify-content:space-between; }
+  .storage-widget-total{ font-size:19px; font-weight:700; color: var(--text-primary); }
+  .storage-widget-chunks{ font-size:11px; color: var(--text-secondary); }
+  .storage-widget-bar{
+    display:flex; height:8px; border-radius:8px; overflow:hidden; gap:3px;
+    background: #0d1626;
+  }
+  .storage-widget-bar .segment{ border-radius:8px; flex-basis:0; transition: flex-grow 0.4s ease; }
+  .segment.images{ background:#22C55E; }
+  .segment.videos{ background:#A855F7; }
+  .segment.docs{ background:#3B82F6; }
+  .segment.audio{ background:#EC4899; }
+  .storage-widget-legend{
+    display:grid; grid-template-columns: 1fr 1fr;
+    gap: 8px 12px;
+    font-size:11px; color: var(--text-secondary);
+  }
+  .storage-widget-legend .legend-item{ display:flex; align-items:center; gap:7px; }
+  .legend-dot{ width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .legend-dot.images{ background:#22C55E; }
+  .legend-dot.videos{ background:#A855F7; }
+  .legend-dot.docs{ background:#3B82F6; }
+  .legend-dot.audio{ background:#EC4899; }
+  .storage-widget-footer{
+    font-size:10.5px; color: var(--text-secondary);
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 10px;
+    display:flex; align-items:center; gap:6px;
+  }
+  .storage-widget-footer i{ color: var(--accent); }
+  .storage-widget-footer strong{ color: var(--text-primary); font-weight:700; }
+
+  /* ---------- Main column ---------- */
+  .main{
+    display:flex;
+    flex-direction:column;
+    height:100vh;
+    overflow:hidden;
+    position:relative;
+  }
+
+  /* Top bar */
+  .topbar{
+    display:flex;
+    align-items:center;
+    gap:20px;
+    padding: 20px 32px;
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar h1{ font-size:20px; font-weight:700; white-space:nowrap; }
+  .topbar .subtitle{ font-size:12px; color:var(--text-secondary); font-weight:400; margin-top:2px; }
+
+  .search-wrap{
+    flex:1;
+    max-width:480px;
+    position:relative;
+  }
+  .search-bar{
+    width:100%;
+    background: rgba(255,255,255,0.05);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 999px;
+    padding: 11px 18px 11px 42px;
+    color: var(--text-primary);
+    font-size:14px;
+    transition: border var(--transition), background var(--transition);
+  }
+  .search-bar::placeholder{ color: var(--text-secondary); }
+  .search-bar:focus{ outline:none; border-color: rgba(59,130,246,0.5); background: rgba(255,255,255,0.07); }
+  .search-wrap i{
+    position:absolute; left:16px; top:50%; transform:translateY(-50%);
+    color: var(--text-secondary); font-size:14px;
+  }
+
+  .profile{
+    margin-left:auto;
+    display:flex; align-items:center; gap:10px;
+  }
+  .profile-avatar{
+    width:38px; height:38px; border-radius:50%;
+    background: linear-gradient(135deg, var(--accent-2), #a855f7);
+    display:flex; align-items:center; justify-content:center;
+    font-weight:700; font-size:14px;
+    border: 2px solid var(--border);
+  }
+  .profile-meta{ font-size:13px; }
+  .profile-meta .name{ font-weight:600; }
+  .profile-meta .role{ color:var(--text-secondary); font-size:11px; }
+
+  /* Content area */
+  .content{
+    flex:1;
+    overflow-y:auto;
+    padding: 24px 32px 140px;
+  }
+
+  .toolbar-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:18px;
+    gap:12px;
+    flex-wrap:wrap;
+  }
+  .toolbar-row .result-count{ font-size:13px; color:var(--text-secondary); }
+  .toolbar-actions{ display:flex; align-items:center; gap:10px; margin-left:auto; }
+
+  .btn{
+    display:inline-flex; align-items:center; gap:8px;
+    font-size:13px; font-weight:600;
+    padding: 9px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    background: rgba(255,255,255,0.03);
+    transition: background var(--transition), border-color var(--transition);
+    white-space:nowrap;
+  }
+  .btn:hover{ background: rgba(255,255,255,0.07); }
+  .btn.primary{
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    border-color: transparent;
+  }
+  .btn.primary:hover{ filter: brightness(1.08); }
+  .btn.active{ background: rgba(59,130,246,0.18); border-color: rgba(59,130,246,0.4); color:#fff; }
+
+  /* Breadcrumb for folder drill-down */
+  .breadcrumb{
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    font-size:13px; color: var(--text-secondary);
+    margin-bottom:14px;
+  }
+  .breadcrumb .crumb-link{ color: var(--accent); font-weight:600; cursor:pointer; }
+  .breadcrumb .crumb-link:hover{ text-decoration:underline; }
+  .breadcrumb i{ font-size:10px; opacity:0.6; }
+
+  .grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap:18px;
+  }
+
+  /* Date-grouped Gallery */
+  .date-group{ margin-bottom:30px; }
+  .date-header{
+    font-size:15px; font-weight:700;
+    color: var(--text-primary);
+    margin-bottom:14px;
+  }
+
+  /* ---------- File card ---------- */
+  .card{
+    background: var(--card);
+    border-radius: var(--radius);
+    overflow:hidden;
+    border:1px solid var(--border);
+    transition: transform var(--transition), background var(--transition), border-color var(--transition);
+    position:relative;
+    display:flex;
+    flex-direction:column;
+    cursor:default;
+  }
+  .card:hover{
+    transform: translateY(-3px);
+    background: var(--card-hover);
+    border-color: rgba(59,130,246,0.35);
+  }
+  .card.selected{ border-color: var(--accent); box-shadow: 0 0 0 2px rgba(59,130,246,0.35); }
+  .card.previewable .card-thumb{ cursor: zoom-in; }
+
+  .card-select-box{
+    position:absolute; top:10px; left:10px; z-index:5;
+    width:22px; height:22px; border-radius:7px;
+    background: rgba(11,18,32,0.75);
+    border: 1.5px solid rgba(255,255,255,0.35);
+    display:none;
+    align-items:center; justify-content:center;
+    color:#fff; font-size:12px;
+    transition: background var(--transition), border-color var(--transition);
+  }
+  .selection-mode .card-select-box{ display:flex; }
+  .card-select-box.checked{ background: var(--accent); border-color: var(--accent); }
+
+  .card-thumb{
+    height:130px;
+    background: #0d1626;
+    display:flex; align-items:center; justify-content:center;
+    position:relative;
+    overflow:hidden;
+  }
+  .card-thumb img, .card-thumb video{ width:100%; height:100%; object-fit:cover; }
+  .card-thumb .file-icon{ font-size:38px; color: var(--text-secondary); }
+  .play-overlay{
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    pointer-events:none;
+  }
+  .play-overlay i{
+    width:38px; height:38px; border-radius:50%;
+    background: rgba(11,18,32,0.55);
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:14px;
+  }
+
+  .card-actions{
+    position:absolute; inset:0;
+    background: linear-gradient(180deg, rgba(11,18,32,0) 40%, rgba(11,18,32,0.85) 100%);
+    display:flex; align-items:flex-end; justify-content:flex-end;
+    gap:8px;
+    padding:10px;
+    opacity:0;
+    transition: opacity var(--transition);
+  }
+  .card:hover .card-actions{ opacity:1; }
+
+  .icon-btn{
+    width:32px; height:32px;
+    border-radius:50%;
+    background: rgba(11,18,32,0.75);
+    display:flex; align-items:center; justify-content:center;
+    color:#fff;
+    font-size:13px;
+    transition: background var(--transition), transform var(--transition);
+  }
+  .icon-btn:hover{ background: var(--accent); transform: scale(1.08); }
+  .icon-btn.danger:hover{ background: var(--danger); }
+
+  .card-meta{ padding: 12px 14px 14px; }
+  .card-meta .fname{
+    font-size:13px; font-weight:600;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .card-meta .fsub{
+    font-size:11px; color: var(--text-secondary);
+    margin-top:4px;
+    display:flex; justify-content:space-between;
+  }
+  .badge-chunks{
+    font-size:9px;
+    background: rgba(99,102,241,0.15);
+    color:#a5b4fc;
+    padding:1px 6px;
+    border-radius:6px;
+    margin-left:6px;
+  }
+
+  /* ---------- Folder card ---------- */
+  .folder-card{
+    background: var(--card);
+    border-radius: var(--radius);
+    border:1px solid var(--border);
+    padding: 20px 18px;
+    display:flex; flex-direction:column; gap:14px;
+    transition: transform var(--transition), background var(--transition), border-color var(--transition);
+    cursor:pointer;
+    position:relative;
+  }
+  .folder-card:hover{
+    transform: translateY(-3px);
+    background: var(--card-hover);
+    border-color: rgba(59,130,246,0.35);
+  }
+  .folder-card .folder-icon{
+    width:44px; height:44px; border-radius:12px;
+    background: linear-gradient(135deg, rgba(59,130,246,0.25), rgba(99,102,241,0.15));
+    display:flex; align-items:center; justify-content:center;
+    color: var(--accent); font-size:19px;
+  }
+  .folder-card .folder-name{ font-size:14px; font-weight:600; word-break:break-word; }
+  .folder-card .folder-count{ font-size:11px; color: var(--text-secondary); }
+  .folder-delete-btn{
+    position:absolute; top:10px; right:10px; z-index:5;
+    width:28px; height:28px; border-radius:50%;
+    background: rgba(11,18,32,0.75);
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:12px;
+    opacity:0;
+    transition: opacity var(--transition), background var(--transition), transform var(--transition);
+  }
+  .folder-card:hover .folder-delete-btn{ opacity:1; }
+  .folder-delete-btn:hover{ background: var(--danger); transform: scale(1.08); }
+
+  .empty-state{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding: 80px 20px; color: var(--text-secondary); text-align:center;
+    gap:14px;
+  }
+  .empty-state i{ font-size:44px; opacity:0.5; }
+  .empty-state h3{ color: var(--text-primary); font-size:16px; }
+  .empty-state p{ font-size:13px; max-width:340px; }
+
+  /* ---------- FAB ---------- */
+  .fab{
+    position:fixed;
+    bottom:32px; right:32px;
+    width:60px; height:60px;
+    border-radius:50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:24px;
+    box-shadow: 0 10px 30px rgba(59,130,246,0.45), 0 0 0 1px rgba(255,255,255,0.05) inset;
+    transition: transform var(--transition), box-shadow var(--transition);
+    z-index: 50;
+  }
+  .fab:hover{ transform: translateY(-2px) scale(1.05); box-shadow: 0 14px 36px rgba(59,130,246,0.6); }
+  .fab:active{ transform: scale(0.96); }
+
+  /* ---------- Upload Manager slide-out panel ---------- */
+  .upload-panel{
+    position:fixed;
+    top:0; right:0;
+    width:420px;
+    height:100vh;
+    background: var(--sidebar);
+    border-left: 1px solid var(--border);
+    box-shadow: -20px 0 60px rgba(0,0,0,0.4);
+    transform: translateX(100%);
+    transition: transform var(--transition);
+    z-index: 100;
+    display:flex;
+    flex-direction:column;
+  }
+  .upload-panel.open{ transform: translateX(0); }
+
+  .upload-panel-header{
+    padding: 22px 24px;
+    border-bottom: 1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .upload-panel-header h2{ font-size:16px; }
+  .upload-panel-header .close-btn{
+    width:32px; height:32px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    color: var(--text-secondary);
+    transition: background var(--transition), color var(--transition);
+  }
+  .upload-panel-header .close-btn:hover{ background: rgba(255,255,255,0.06); color:#fff; }
+
+  .upload-panel-body{ flex:1; overflow-y:auto; padding: 16px 20px; }
+
+  .upload-card{
+    background: var(--card);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    border: 1px solid var(--border);
+  }
+  .upload-card-top{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:10px;
+    gap:10px;
+  }
+  .upload-card-name{
+    font-size:13px; font-weight:600;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    max-width:250px;
+  }
+  .upload-card-pct{ font-size:12px; color: var(--accent); font-weight:700; min-width:36px; text-align:right; }
+  .upload-card-status-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    margin-top:6px;
+  }
+  .upload-card-status{ font-size:11px; color: var(--text-secondary); flex:1; }
+  .upload-card-status.error{ color: var(--danger); }
+  .upload-card-status.done{ color: var(--success); }
+  .retry-btn{
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:11px; font-weight:600;
+    color: var(--danger);
+    background: rgba(239,68,68,0.12);
+    border: 1px solid rgba(239,68,68,0.35);
+    padding: 4px 10px;
+    border-radius: 8px;
+    white-space:nowrap;
+    transition: background var(--transition);
+    flex-shrink:0;
+  }
+  .retry-btn:hover{ background: rgba(239,68,68,0.22); }
+
+  .progress-track{
+    height:7px;
+    border-radius:8px;
+    background: #0d1626;
+    overflow:hidden;
+  }
+  .progress-fill{
+    height:100%;
+    width:0%;
+    border-radius:8px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    transition: width 0.2s ease;
+  }
+  .progress-fill.done{ background: linear-gradient(90deg, var(--success), #16a34a); }
+  .progress-fill.error{ background: var(--danger); }
+
+  .upload-panel-footer{
+    padding: 16px 20px;
+    border-top: 1px solid var(--border);
+    font-size:12px;
+    color: var(--text-secondary);
+    display:flex; justify-content:space-between;
+  }
+
+  /* Hidden native inputs */
+  #fileInput, #folderInput{ display:none; }
+
+  /* Scrim behind the panel on smaller windows (subtle) */
+  .panel-scrim{
+    position:fixed; inset:0; background: rgba(0,0,0,0.25);
+    opacity:0; pointer-events:none; transition: opacity var(--transition);
+    z-index: 90;
+  }
+  .panel-scrim.show{ opacity:1; pointer-events:auto; }
+
+  /* ---------- Bulk selection action bar ---------- */
+  .bulk-bar{
+    position:fixed;
+    left:50%; bottom:32px;
+    transform: translateX(-50%) translateY(120%);
+    background: #16233b;
+    border: 1px solid rgba(59,130,246,0.35);
+    border-radius: 16px;
+    padding: 12px 14px 12px 20px;
+    display:flex; align-items:center; gap:16px;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.45);
+    transition: transform var(--transition);
+    z-index: 60;
+  }
+  .bulk-bar.show{ transform: translateX(-50%) translateY(0); }
+  .bulk-bar .bulk-count{ font-size:13px; font-weight:600; white-space:nowrap; }
+  .bulk-bar .bulk-actions{ display:flex; gap:8px; }
+
+  /* ---------- Lightbox preview ---------- */
+  .lightbox{
+    position:fixed; inset:0;
+    background: rgba(5,8,15,0.92);
+    display:none;
+    align-items:center; justify-content:center;
+    flex-direction:column;
+    padding:40px;
+    z-index: 300;
+  }
+  .lightbox.show{ display:flex; }
+  .lightbox-inner{ max-width:90vw; max-height:80vh; display:flex; align-items:center; justify-content:center; }
+  .lightbox-inner img, .lightbox-inner video{
+    max-width:90vw; max-height:80vh;
+    border-radius:12px;
+    box-shadow: 0 24px 70px rgba(0,0,0,0.55);
+  }
+  .lightbox-caption{ margin-top:18px; color: var(--text-secondary); font-size:13px; }
+  .lightbox-close{
+    position:absolute; top:26px; right:32px;
+    width:42px; height:42px; border-radius:50%;
+    background: rgba(255,255,255,0.08);
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:16px;
+    transition: background var(--transition);
+  }
+  .lightbox-close:hover{ background: rgba(255,255,255,0.18); }
+  .lightbox-nav{
+    position:absolute; top:50%; transform:translateY(-50%);
+    width:46px; height:46px; border-radius:50%;
+    background: rgba(255,255,255,0.08);
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:16px;
+    transition: background var(--transition);
+  }
+  .lightbox-nav:hover{ background: rgba(255,255,255,0.18); }
+  .lightbox-nav.prev{ left:24px; }
+  .lightbox-nav.next{ right:24px; }
+
+  /* ---------- Live delete status bar ---------- */
+  .delete-status-bar{
+    position:fixed;
+    top:24px; left:50%;
+    transform: translateX(-50%) translateY(-140%);
+    background: #16233b;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 18px;
+    display:flex; align-items:center; gap:10px;
+    font-size:13px; font-weight:600;
+    color: var(--text-primary);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+    transition: transform var(--transition), border-color var(--transition), color var(--transition);
+    z-index: 250;
+  }
+  .delete-status-bar.show{ transform: translateX(-50%) translateY(0); }
+  .delete-status-bar i{ color: var(--danger); }
+  .delete-status-bar.success{ border-color: rgba(34,197,94,0.4); color:#86efac; }
+  .delete-status-bar.success i{ color: var(--success); }
+  .delete-status-bar.error{ border-color: rgba(239,68,68,0.4); color:#fca5a5; }
+  .delete-status-bar.error i{ color: var(--danger); }
+
+  /* Toasts */
+  .toast-stack{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+    display:flex; flex-direction:column; gap:8px;
+    z-index: 200;
+  }
+  .toast{
+    background: #16233b;
+    border: 1px solid var(--border);
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-size:13px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    animation: toast-in 0.25s ease;
+  }
+  .toast.error{ border-color: rgba(239,68,68,0.4); color:#fca5a5; }
+  .toast.success{ border-color: rgba(34,197,94,0.4); color:#86efac; }
+  @keyframes toast-in{ from{ opacity:0; transform: translateY(8px);} to{opacity:1; transform:translateY(0);} }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- =============================== SIDEBAR =============================== -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-icon"><i class="fa-solid fa-cloud"></i></div>
+      <div>
+        <div class="brand-name">Nimbus</div>
+        <div class="brand-sub">Powered by Discord CDN</div>
+      </div>
+    </div>
+
+    <div class="nav-section-label">Library</div>
+    <div class="nav-item active" data-view="gallery">
+      <i class="fa-solid fa-images"></i> Gallery
+      <span class="count-pill" id="galleryCount">0</span>
+    </div>
+    <div class="nav-item" data-view="folders">
+      <i class="fa-solid fa-folder"></i> Folders
+    </div>
+    <div class="nav-item" data-view="all">
+      <i class="fa-solid fa-layer-group"></i> All Files
+      <span class="count-pill" id="allFilesCount">0</span>
+    </div>
+
+    <div class="nav-section-label">Activity</div>
+    <!-- Dynamic sidebar button: only visible while activeUploads > 0 -->
+    <div class="nav-item uploading" id="uploadingNavItem">
+      <i class="fa-solid fa-arrows-rotate"></i>
+      <span id="uploadingLabel">Uploading (0)</span>
+      <span class="pulse-dot"></span>
+    </div>
+
+    <div class="storage-widget" id="storageWidget">
+      <div class="storage-widget-header">
+        <div class="storage-widget-title"><i class="fa-solid fa-chart-pie"></i> Cloud Storage</div>
+        <div class="storage-widget-badge">Unlimited</div>
+      </div>
+      <div class="storage-widget-total-row">
+        <div class="storage-widget-total" id="storageTotalBytes">0 Bytes</div>
+        <div class="storage-widget-chunks" id="storageTotalChunks">0 Chunks</div>
+      </div>
+      <div class="storage-widget-bar">
+        <div class="segment images" id="segImages"></div>
+        <div class="segment videos" id="segVideos"></div>
+        <div class="segment docs" id="segDocs"></div>
+        <div class="segment audio" id="segAudio"></div>
+      </div>
+      <div class="storage-widget-legend">
+        <div class="legend-item"><span class="legend-dot images"></span>Images (<span id="countImages">0</span>)</div>
+        <div class="legend-item"><span class="legend-dot videos"></span>Videos (<span id="countVideos">0</span>)</div>
+        <div class="legend-item"><span class="legend-dot docs"></span>Docs (<span id="countDocs">0</span>)</div>
+        <div class="legend-item"><span class="legend-dot audio"></span>Audio (<span id="countAudio">0</span>)</div>
+      </div>
+      <div class="storage-widget-footer"><i class="fa-solid fa-gear"></i> Split limit: <strong>&le; 9.99 MB</strong> / chunk</div>
+    </div>
+  </aside>
+
+  <!-- =============================== MAIN =============================== -->
+  <main class="main">
+
+    <div class="topbar">
+      <div>
+        <h1 id="viewTitle">Gallery</h1>
+        <div class="subtitle" id="viewSubtitle">Photos and videos, grouped by date</div>
+      </div>
+
+      <div class="search-wrap">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" class="search-bar" id="searchInput" placeholder="Search by filename or year (e.g. 2023)…" />
+      </div>
+
+      <div class="profile">
+        <div class="profile-meta" style="text-align:right;">
+          <div class="name">You</div>
+          <div class="role">Free plan</div>
+        </div>
+        <div class="profile-avatar">Y</div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <div class="breadcrumb" id="breadcrumb" style="display:none;"></div>
+
+      <div class="toolbar-row">
+        <div class="result-count" id="resultCount">0 items</div>
+        <div class="toolbar-actions" id="toolbarActions">
+          <button class="btn" id="newFolderBtn" style="display:none;"><i class="fa-solid fa-folder-plus"></i> New folder</button>
+          <button class="btn" id="uploadFolderBtn" style="display:none;"><i class="fa-solid fa-upload"></i> Upload folder</button>
+          <button class="btn primary" id="uploadHereBtn" style="display:none;"><i class="fa-solid fa-upload"></i> Upload here</button>
+          <button class="btn" id="selectToggleBtn"><i class="fa-solid fa-check-double"></i> Select</button>
+          <button class="btn" id="selectAllBtn" style="display:none;"><i class="fa-solid fa-list-check"></i> Select all</button>
+        </div>
+      </div>
+
+      <div id="viewContent"></div>
+
+      <div class="empty-state" id="emptyState" style="display:none;">
+        <i class="fa-solid fa-cloud-arrow-up"></i>
+        <h3 id="emptyStateTitle">Nothing here yet</h3>
+        <p id="emptyStateBody">Drop files with the + button in the corner, or upload a whole folder to get started.</p>
+      </div>
+    </div>
+
+    <!-- FAB -->
+    <button class="fab" id="fabButton" title="Upload files">
+      <i class="fa-solid fa-plus"></i>
+    </button>
+
+    <!-- Hidden inputs -->
+    <input type="file" id="fileInput" multiple />
+    <input type="file" id="folderInput" webkitdirectory directory multiple />
+
+  </main>
+</div>
+
+<!-- =============================== UPLOAD MANAGER PANEL =============================== -->
+<div class="panel-scrim" id="panelScrim"></div>
+<div class="upload-panel" id="uploadPanel">
+  <div class="upload-panel-header">
+    <h2>Upload Manager</h2>
+    <button class="close-btn" id="closePanelBtn"><i class="fa-solid fa-xmark"></i></button>
+  </div>
+  <div class="upload-panel-body" id="uploadPanelBody">
+    <!-- Upload cards injected here by JS -->
+  </div>
+  <div class="upload-panel-footer">
+    <span id="queueSummary">0 in queue</span>
+    <span id="queueDone">0 complete</span>
+  </div>
+</div>
+
+<!-- =============================== BULK SELECTION BAR =============================== -->
+<div class="bulk-bar" id="bulkBar">
+  <span class="bulk-count" id="bulkCount">0 selected</span>
+  <div class="bulk-actions">
+    <button class="btn" id="bulkDownloadBtn"><i class="fa-solid fa-download"></i> Download</button>
+    <button class="btn" id="bulkDeleteBtn" style="color:#fca5a5;"><i class="fa-solid fa-trash"></i> Delete</button>
+    <button class="btn" id="bulkCancelBtn"><i class="fa-solid fa-xmark"></i> Cancel</button>
+  </div>
+</div>
+
+<!-- =============================== LIVE DELETE STATUS =============================== -->
+<div class="delete-status-bar" id="deleteStatusBar">
+  <i class="fa-solid fa-spinner fa-spin" id="deleteStatusIcon"></i>
+  <span id="deleteStatusText">Deleting…</span>
+</div>
+
+<!-- =============================== LIGHTBOX PREVIEW =============================== -->
+<div class="lightbox" id="lightbox">
+  <button class="lightbox-close" id="lightboxClose"><i class="fa-solid fa-xmark"></i></button>
+  <button class="lightbox-nav prev" id="lightboxPrev"><i class="fa-solid fa-chevron-left"></i></button>
+  <div class="lightbox-inner" id="lightboxInner"></div>
+  <div class="lightbox-caption" id="lightboxCaption"></div>
+  <button class="lightbox-nav next" id="lightboxNext"><i class="fa-solid fa-chevron-right"></i></button>
+</div>
+
+<div class="toast-stack" id="toastStack"></div>
+
+<script>
+/* =============================================================
+   STATE
+   ============================================================= */
+let files = [];              // full metadata list from /api/files
+let allFolders = [];         // every known folder path, from /api/folders
+let activeUploads = 0;
+let completedInSession = 0;
+let batchTotal = 0;   // files in the current upload batch (resets once the batch finishes)
+let batchDone = 0;    // how many of those have finished (success or failure) so far
+
+let currentView = 'gallery';    // 'gallery' | 'folders' | 'all'
+let currentFolderPath = '';     // '' = folders root; non-empty = drilled into that path
+let selectionMode = false;
+let selectedIds = new Set();
+let currentVisibleFiles = [];   // the file records actually rendered right now (for "Select all")
+
+let lightboxList = [];  // the ordered list of previewable records currently open in the lightbox
+let lightboxIndex = -1;
+
+/* =============================================================
+   DOM REFS
+   ============================================================= */
+const viewContent      = document.getElementById('viewContent');
+const emptyState       = document.getElementById('emptyState');
+const emptyStateTitle  = document.getElementById('emptyStateTitle');
+const emptyStateBody   = document.getElementById('emptyStateBody');
+const resultCount      = document.getElementById('resultCount');
+const galleryCount     = document.getElementById('galleryCount');
+const allFilesCount     = document.getElementById('allFilesCount');
+const searchInput      = document.getElementById('searchInput');
+const breadcrumbEl      = document.getElementById('breadcrumb');
+
+const fabButton        = document.getElementById('fabButton');
+const fileInput        = document.getElementById('fileInput');
+const folderInput      = document.getElementById('folderInput');
+const uploadFolderBtn   = document.getElementById('uploadFolderBtn');
+const uploadHereBtn      = document.getElementById('uploadHereBtn');
+const newFolderBtn       = document.getElementById('newFolderBtn');
+const selectToggleBtn   = document.getElementById('selectToggleBtn');
+const selectAllBtn       = document.getElementById('selectAllBtn');
+
+const uploadPanel       = document.getElementById('uploadPanel');
+const panelScrim        = document.getElementById('panelScrim');
+const closePanelBtn     = document.getElementById('closePanelBtn');
+const uploadPanelBody   = document.getElementById('uploadPanelBody');
+const uploadingNavItem  = document.getElementById('uploadingNavItem');
+const uploadingLabel    = document.getElementById('uploadingLabel');
+const queueSummary      = document.getElementById('queueSummary');
+const queueDone         = document.getElementById('queueDone');
+
+const storageTotalBytesEl  = document.getElementById('storageTotalBytes');
+const storageTotalChunksEl = document.getElementById('storageTotalChunks');
+const segImagesEl = document.getElementById('segImages');
+const segVideosEl = document.getElementById('segVideos');
+const segDocsEl   = document.getElementById('segDocs');
+const segAudioEl  = document.getElementById('segAudio');
+const countImagesEl = document.getElementById('countImages');
+const countVideosEl = document.getElementById('countVideos');
+const countDocsEl   = document.getElementById('countDocs');
+const countAudioEl  = document.getElementById('countAudio');
+const toastStack        = document.getElementById('toastStack');
+
+const bulkBar           = document.getElementById('bulkBar');
+const bulkCount          = document.getElementById('bulkCount');
+const bulkDownloadBtn    = document.getElementById('bulkDownloadBtn');
+const bulkDeleteBtn      = document.getElementById('bulkDeleteBtn');
+const bulkCancelBtn      = document.getElementById('bulkCancelBtn');
+
+const deleteStatusBar   = document.getElementById('deleteStatusBar');
+const deleteStatusText  = document.getElementById('deleteStatusText');
+const deleteStatusIcon  = document.getElementById('deleteStatusIcon');
+
+const lightbox          = document.getElementById('lightbox');
+const lightboxInner     = document.getElementById('lightboxInner');
+const lightboxCaption   = document.getElementById('lightboxCaption');
+const lightboxClose     = document.getElementById('lightboxClose');
+const lightboxPrev       = document.getElementById('lightboxPrev');
+const lightboxNext       = document.getElementById('lightboxNext');
+
+/* =============================================================
+   INIT
+   ============================================================= */
+document.addEventListener('DOMContentLoaded', refreshAll);
+
+async function refreshAll() {
+  await Promise.all([fetchFiles(), fetchFolders()]);
+  render();
+}
+
+async function fetchFiles() {
+  try {
+    const res = await fetch('/api/files');
+    files = await res.json();
+    updateStorageMeter();
+  } catch (err) {
+    showToast('Could not load files from the server.', 'error');
+  }
+}
+
+async function fetchFolders() {
+  try {
+    const res = await fetch('/api/folders');
+    allFolders = await res.json();
+  } catch (err) {
+    // Soft fail — folder tree still works from files' own folder_path values.
+  }
+}
+
+/* =============================================================
+   FILE TYPE HELPERS
+   ============================================================= */
+function isImage(filename) {
+  return /\.(jpe?g|png|gif|webp|bmp|heic)$/i.test(filename || '');
+}
+function isVideo(filename) {
+  return /\.(mp4|mov|webm|mkv|avi|m4v)$/i.test(filename || '');
+}
+function isAudio(filename) {
+  return /\.(mp3|wav|ogg|flac|m4a|aac|wma)$/i.test(filename || '');
+}
+// Media is always previewable now: single-chunk files preview directly
+// from the Discord CDN URL; multi-chunk (split) files preview through
+// our own Range-capable /preview endpoint that reassembles on the fly.
+function isPreviewable(record) {
+  return isImage(record.filename) || isVideo(record.filename);
+}
+function isSingleChunk(record) {
+  return record.chunks && record.chunks.length === 1;
+}
+function previewUrlFor(record) {
+  return isSingleChunk(record) ? record.chunks[0].cdn_url : `/api/files/${record.id}/preview`;
+}
+
+function fileIconFor(filename) {
+  const ext = (filename || '').split('.').pop().toLowerCase();
+  const map = {
+    pdf: 'fa-file-pdf', zip: 'fa-file-zipper', doc: 'fa-file-word', docx: 'fa-file-word',
+    xls: 'fa-file-excel', xlsx: 'fa-file-excel', mp4: 'fa-file-video', mov: 'fa-file-video',
+    mp3: 'fa-file-audio', wav: 'fa-file-audio', txt: 'fa-file-lines',
+  };
+  return map[ext] || 'fa-file';
+}
+
+function formatBytes(bytes) {
+  if (!bytes && bytes !== 0) return '';
+  if (bytes < 1024) return `${bytes} Bytes`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
+
+function categorize(filename) {
+  if (isImage(filename)) return 'images';
+  if (isVideo(filename)) return 'videos';
+  if (isAudio(filename)) return 'audio';
+  return 'docs';
+}
+
+function updateStorageMeter() {
+  // --- Live nav counts ---
+  const galleryFileCount = files.filter(r => isPreviewable(r) && r.source === 'gallery').length;
+  galleryCount.textContent = galleryFileCount;
+  allFilesCount.textContent = files.length;
+
+  // --- Cloud Storage widget: totals, chunks, and per-category breakdown ---
+  let totalBytes = 0, totalChunks = 0;
+  const cat = {
+    images: { count: 0, bytes: 0 },
+    videos: { count: 0, bytes: 0 },
+    docs:   { count: 0, bytes: 0 },
+    audio:  { count: 0, bytes: 0 },
+  };
+
+  files.forEach(f => {
+    totalBytes += f.size_bytes || 0;
+    totalChunks += f.chunk_count || 1;
+    const key = categorize(f.filename);
+    cat[key].count += 1;
+    cat[key].bytes += f.size_bytes || 0;
+  });
+
+  storageTotalBytesEl.textContent = formatBytes(totalBytes);
+  storageTotalChunksEl.textContent = `${totalChunks} Chunk${totalChunks === 1 ? '' : 's'}`;
+
+  countImagesEl.textContent = cat.images.count;
+  countVideosEl.textContent = cat.videos.count;
+  countDocsEl.textContent = cat.docs.count;
+  countAudioEl.textContent = cat.audio.count;
+
+  const segEls = { images: segImagesEl, videos: segVideosEl, docs: segDocsEl, audio: segAudioEl };
+  const keys = ['images', 'videos', 'docs', 'audio'];
+
+  if (totalBytes > 0) {
+    // Each segment's width is proportional to its share of total bytes —
+    // using flex-grow means the widths always sum cleanly to 100% without
+    // any manual percentage math, and a category with 0 files collapses
+    // to nothing automatically.
+    keys.forEach(key => {
+      segEls[key].style.flexGrow = cat[key].count > 0 ? Math.max(cat[key].bytes, 1) : 0;
+    });
+  } else {
+    // Nothing uploaded yet — show four equal neutral segments instead of
+    // collapsing the whole bar away.
+    keys.forEach(key => { segEls[key].style.flexGrow = 1; });
+  }
+}
+
+/* =============================================================
+   DATE-WISE SORTING — used everywhere in the app. Prefers the
+   file's own metadata date (EXIF "Captured Date") over the upload
+   timestamp, since that's the date that actually describes the
+   file's content.
+   ============================================================= */
+function getFileSortDate(record) {
+  const raw = record.captured_date ? record.captured_date.replace(' ', 'T') : record.uploaded_at;
+  const t = raw ? Date.parse(raw) : NaN;
+  return isNaN(t) ? 0 : t;
+}
+function sortByDateDesc(list) {
+  return [...list].sort((a, b) => getFileSortDate(b) - getFileSortDate(a));
+}
+function formatDateHeader(ms) {
+  const d = new Date(ms);
+  const weekday = d.toLocaleDateString('en-US', { weekday: 'short' });
+  const month = d.toLocaleDateString('en-US', { month: 'long' });
+  return `${weekday}, ${d.getDate()} ${month} ${d.getFullYear()}`;
+}
+
+/* =============================================================
+   FOLDER TREE HELPERS — folders are real, nested entities. A
+   subfolder only ever appears under its real parent, never as a
+   flat sibling at the root.
+   ============================================================= */
+function combinedFolderSet() {
+  const set = new Set(allFolders);
+  files.forEach(f => {
+    let fp = f.folder_path || '';
+    while (fp) {
+      set.add(fp);
+      const idx = fp.lastIndexOf('/');
+      fp = idx === -1 ? '' : fp.slice(0, idx);
+    }
+  });
+  set.delete('');
+  return set;
+}
+
+function directChildFolders(parentPath) {
+  const all = Array.from(combinedFolderSet());
+  return all.filter(p => {
+    const idx = p.lastIndexOf('/');
+    const parent = idx === -1 ? '' : p.slice(0, idx);
+    return parent === parentPath;
+  }).sort((a, b) => a.localeCompare(b));
+}
+
+function filesDirectlyIn(folderPath) {
+  return files.filter(f => (f.folder_path || '') === folderPath);
+}
+
+// Total files inside a folder AND all of its subfolders — used for the
+// "N items" label on folder tiles, matching how a real file browser counts.
+function folderItemCount(path) {
+  const prefix = path + '/';
+  return files.filter(f => {
+    const fp = f.folder_path || '';
+    return fp === path || fp.startsWith(prefix);
+  }).length;
+}
+
+/* =============================================================
+   VIEW / NAV SWITCHING
+   ============================================================= */
+document.querySelectorAll('.nav-item[data-view]').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item[data-view]').forEach(i => i.classList.remove('active'));
+    item.classList.add('active');
+    currentView = item.dataset.view;
+    currentFolderPath = '';
+    exitSelectionMode();
+    searchInput.value = '';
+    render();
+  });
+});
+
+function applySearch(list) {
+  const q = searchInput.value.trim().toLowerCase();
+  if (!q) return list;
+  return list.filter(f => {
+    const name = (f.filename || '').toLowerCase();
+    const captured = (f.captured_date || '').toLowerCase();
+    const uploaded = (f.uploaded_at || '').toLowerCase();
+    return name.includes(q) || captured.includes(q) || uploaded.includes(q);
+  });
+}
+
+searchInput.addEventListener('input', render);
+
+/* =============================================================
+   MAIN RENDER DISPATCH
+   ============================================================= */
+function render() {
+  updateHeader();
+  updateBreadcrumb();
+  updateToolbar();
+
+  if (currentView === 'folders') {
+    renderFoldersView();
+  } else if (currentView === 'gallery') {
+    renderGalleryGrouped();
+  } else {
+    renderFlatFileGrid(applySearch(sortByDateDesc(files)));
+  }
+
+  updateSelectAllLabel();
+}
+
+function updateSelectAllLabel() {
+  const allSelected = currentVisibleFiles.length > 0 && currentVisibleFiles.every(f => selectedIds.has(f.id));
+  selectAllBtn.innerHTML = allSelected
+    ? '<i class="fa-solid fa-square-minus"></i> Deselect all'
+    : '<i class="fa-solid fa-list-check"></i> Select all';
+}
+
+function updateHeader() {
+  const titles = {
+    gallery: ['Gallery', 'Photos and videos, grouped by date'],
+    folders: ['Folders', 'Browse and upload directly into a folder'],
+    all: ['All Files', 'Every file uploaded through Nimbus, newest first'],
+  };
+  let [title, subtitle] = titles[currentView] || titles.gallery;
+  if (currentView === 'folders' && currentFolderPath) {
+    title = currentFolderPath.split('/').pop();
+    subtitle = `Uploads placed here land inside "${currentFolderPath}"`;
+  }
+  document.getElementById('viewTitle').textContent = title;
+  document.getElementById('viewSubtitle').textContent = subtitle;
+}
+
+function updateBreadcrumb() {
+  if (currentView !== 'folders' || !currentFolderPath) {
+    breadcrumbEl.style.display = 'none';
+    breadcrumbEl.innerHTML = '';
+    return;
+  }
+  const parts = currentFolderPath.split('/');
+  let html = '<span class="crumb-link" data-path="">Folders</span>';
+  let acc = '';
+  parts.forEach((part, i) => {
+    acc = acc ? `${acc}/${part}` : part;
+    html += ' <i class="fa-solid fa-chevron-right"></i> ';
+    html += i === parts.length - 1
+      ? `<span>${escapeHtml(part)}</span>`
+      : `<span class="crumb-link" data-path="${escapeHtml(acc)}">${escapeHtml(part)}</span>`;
+  });
+  breadcrumbEl.innerHTML = html;
+  breadcrumbEl.style.display = 'flex';
+  breadcrumbEl.querySelectorAll('.crumb-link').forEach(el => {
+    el.addEventListener('click', () => {
+      currentFolderPath = el.dataset.path;
+      exitSelectionMode();
+      render();
+    });
+  });
+}
+
+function updateToolbar() {
+  const atFolderRoot = currentView === 'folders' && !currentFolderPath;
+  const insideFolder = currentView === 'folders' && !!currentFolderPath;
+
+  newFolderBtn.style.display    = currentView === 'folders' ? 'inline-flex' : 'none';
+  uploadFolderBtn.style.display = atFolderRoot ? 'inline-flex' : 'none';
+  uploadHereBtn.style.display   = insideFolder ? 'inline-flex' : 'none';
+  selectToggleBtn.style.display = atFolderRoot ? 'none' : 'inline-flex';
+  selectAllBtn.style.display    = (!atFolderRoot && selectionMode) ? 'inline-flex' : 'none';
+
+  // The floating + button only makes sense when there's an unambiguous
+  // place for it to upload to. Inside a folder, "Upload here" takes over.
+  fabButton.style.display = insideFolder ? 'none' : 'flex';
+
+  if (atFolderRoot) exitSelectionMode();
+}
+
+function showEmptyState(title, body) {
+  emptyStateTitle.textContent = title;
+  emptyStateBody.textContent = body;
+  emptyState.style.display = 'flex';
+}
+function hideEmptyState() {
+  emptyState.style.display = 'none';
+}
+
+/* =============================================================
+   RENDER: GALLERY — media only, grouped by date (like a photo app)
+   ============================================================= */
+function renderGalleryGrouped() {
+  viewContent.innerHTML = '';
+  const media = applySearch(files.filter(r => isPreviewable(r) && r.source === 'gallery'));
+  const sorted = sortByDateDesc(media);
+  currentVisibleFiles = sorted;
+
+  if (!sorted.length) {
+    showEmptyState('No photos or videos yet', 'Upload some pictures or videos with the + button and they’ll show up here, grouped by date.');
+    resultCount.textContent = '0 items';
+    return;
+  }
+  hideEmptyState();
+
+  const groups = [];
+  let lastKey = null;
+  sorted.forEach(record => {
+    const ms = getFileSortDate(record);
+    const dayKey = new Date(ms).toDateString();
+    if (dayKey !== lastKey) {
+      groups.push({ ms, items: [] });
+      lastKey = dayKey;
+    }
+    groups[groups.length - 1].items.push(record);
+  });
+
+  groups.forEach(group => {
+    const section = document.createElement('div');
+    section.className = 'date-group';
+
+    const header = document.createElement('div');
+    header.className = 'date-header';
+    header.textContent = formatDateHeader(group.ms);
+
+    const grid = document.createElement('div');
+    grid.className = 'grid' + (selectionMode ? ' selection-mode' : '');
+    group.items.forEach(record => grid.appendChild(buildFileCard(record, sorted)));
+
+    section.appendChild(header);
+    section.appendChild(grid);
+    viewContent.appendChild(section);
+  });
+
+  resultCount.textContent = `${sorted.length} item${sorted.length === 1 ? '' : 's'}`;
+}
+
+/* =============================================================
+   RENDER: ALL FILES — flat grid, every file, date-wise
+   ============================================================= */
+function renderFlatFileGrid(list) {
+  viewContent.innerHTML = '';
+  currentVisibleFiles = list;
+  if (!list.length) {
+    showEmptyState('No files yet', 'Everything you upload through Nimbus will show up here.');
+    resultCount.textContent = '0 items';
+    return;
+  }
+  hideEmptyState();
+
+  const grid = document.createElement('div');
+  grid.className = 'grid' + (selectionMode ? ' selection-mode' : '');
+  list.forEach(record => grid.appendChild(buildFileCard(record, list)));
+  viewContent.appendChild(grid);
+
+  resultCount.textContent = `${list.length} item${list.length === 1 ? '' : 's'}`;
+}
+
+/* =============================================================
+   RENDER: FOLDERS — real nesting. Subfolders appear only under
+   their real parent; files shown are only the ones placed
+   directly in the currently open folder (or at the root, none —
+   the root just lists top-level folders).
+   ============================================================= */
+function renderFoldersView() {
+  viewContent.innerHTML = '';
+  const subfolders = directChildFolders(currentFolderPath);
+  const directFiles = sortByDateDesc(applySearch(filesDirectlyIn(currentFolderPath)));
+  currentVisibleFiles = directFiles;
+
+  if (!subfolders.length && !directFiles.length) {
+    showEmptyState(
+      currentFolderPath ? 'This folder is empty' : 'No folders yet',
+      currentFolderPath
+        ? 'Use "Upload here" to add files, or "New folder" to nest another folder inside this one.'
+        : 'Use "New folder" to create one, or "Upload folder" to bring in a whole local folder tree.'
+    );
+    resultCount.textContent = '0 items';
+    return;
+  }
+  hideEmptyState();
+
+  const grid = document.createElement('div');
+  grid.className = 'grid' + (selectionMode ? ' selection-mode' : '');
+  subfolders.forEach(path => grid.appendChild(buildFolderTile(path)));
+  directFiles.forEach(record => grid.appendChild(buildFileCard(record, directFiles)));
+  viewContent.appendChild(grid);
+
+  resultCount.textContent = `${subfolders.length} folder${subfolders.length === 1 ? '' : 's'}, ${directFiles.length} file${directFiles.length === 1 ? '' : 's'}`;
+}
+
+function buildFolderTile(path) {
+  const tile = document.createElement('div');
+  tile.className = 'folder-card';
+  const name = path.split('/').pop();
+  const count = folderItemCount(path);
+  tile.innerHTML = `
+    <button class="folder-delete-btn" title="Delete folder"><i class="fa-solid fa-trash"></i></button>
+    <div class="folder-icon"><i class="fa-solid fa-folder"></i></div>
+    <div>
+      <div class="folder-name">${escapeHtml(name)}</div>
+      <div class="folder-count">${count} item${count === 1 ? '' : 's'}</div>
+    </div>
+  `;
+  tile.addEventListener('click', () => {
+    currentFolderPath = path;
+    exitSelectionMode();
+    render();
+  });
+  tile.querySelector('.folder-delete-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    deleteFolder(path, count);
+  });
+  return tile;
+}
+
+async function deleteFolder(path, itemCount) {
+  const name = path.split('/').pop();
+  if (!confirm(`Delete folder "${name}"? This permanently deletes it and all ${itemCount} file${itemCount === 1 ? '' : 's'} inside it (including any subfolders) from Discord.`)) return;
+
+  showDeleteStatus(`Deleting folder "${name}"…`);
+  try {
+    const res = await fetch('/api/folders/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Failed to delete folder');
+
+    if (body.failed_files && body.failed_files.length) {
+      finishDeleteStatus(`Partially deleted — ${body.deleted_files.length} removed, ${body.failed_files.length} failed`, true);
+      showToast(`Folder partially deleted — ${body.failed_files.length} file(s) failed`, 'error');
+    } else {
+      finishDeleteStatus(`Deleted folder "${name}" and ${body.deleted_files.length} file(s)`, false);
+      showToast(`Deleted folder "${name}"`, 'success');
+    }
+
+    // If we were inside the deleted folder (or a descendant of it), back out to its parent.
+    if (currentFolderPath === path || currentFolderPath.startsWith(path + '/')) {
+      const idx = path.lastIndexOf('/');
+      currentFolderPath = idx === -1 ? '' : path.slice(0, idx);
+    }
+    await refreshAll();
+  } catch (err) {
+    finishDeleteStatus('Failed to delete folder', true);
+    showToast(err.message, 'error');
+  }
+}
+
+/* =============================================================
+   FILE CARD (shared by Gallery / All Files / Folders)
+   ============================================================= */
+function buildFileCard(record, siblingList) {
+  const previewable = isPreviewable(record);
+  const card = document.createElement('div');
+  card.className = 'card' + (selectedIds.has(record.id) ? ' selected' : '') + (previewable ? ' previewable' : '');
+  card.dataset.id = record.id;
+
+  const selectBox = document.createElement('div');
+  selectBox.className = 'card-select-box' + (selectedIds.has(record.id) ? ' checked' : '');
+  selectBox.innerHTML = selectedIds.has(record.id) ? '<i class="fa-solid fa-check"></i>' : '';
+  selectBox.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleSelection(record.id);
+  });
+  card.appendChild(selectBox);
+
+  const thumb = document.createElement('div');
+  thumb.className = 'card-thumb';
+
+  if (isImage(record.filename) && isSingleChunk(record)) {
+    const img = document.createElement('img');
+    img.src = record.chunks[0].cdn_url;
+    img.loading = 'lazy';
+    img.alt = record.filename;
+    thumb.appendChild(img);
+  } else if (isVideo(record.filename) && isSingleChunk(record)) {
+    const video = document.createElement('video');
+    video.src = record.chunks[0].cdn_url;
+    video.muted = true;
+    video.preload = 'metadata';
+    thumb.appendChild(video);
+    thumb.innerHTML += '<div class="play-overlay"><i class="fa-solid fa-play"></i></div>';
+  } else if (previewable) {
+    // Large media split across multiple Discord chunks — generating a real
+    // thumbnail would mean fetching megabytes just to show a 130px preview,
+    // so we show a placeholder here and reassemble on demand when it's
+    // actually opened in the big lightbox preview instead.
+    thumb.innerHTML += `<i class="fa-solid ${isVideo(record.filename) ? 'fa-file-video' : 'fa-file-image'} file-icon"></i><div class="play-overlay"><i class="fa-solid fa-eye"></i></div>`;
+  } else {
+    thumb.innerHTML += `<i class="fa-solid ${fileIconFor(record.filename)} file-icon"></i>`;
+  }
+
+  const actions = document.createElement('div');
+  actions.className = 'card-actions';
+  actions.innerHTML = `
+    <button class="icon-btn" title="Download" onclick="event.stopPropagation(); downloadFile('${record.id}')"><i class="fa-solid fa-download"></i></button>
+    <button class="icon-btn danger" title="Delete" onclick="event.stopPropagation(); deleteFile('${record.id}')"><i class="fa-solid fa-trash"></i></button>
+  `;
+  thumb.appendChild(actions);
+
+  const meta = document.createElement('div');
+  meta.className = 'card-meta';
+  const sizeLabel = formatBytes(record.size_bytes);
+  const dateLabel = record.captured_date
+    ? record.captured_date.split(' ')[0]
+    : (record.uploaded_at || '').split('T')[0];
+
+  meta.innerHTML = `
+    <div class="fname">${escapeHtml(record.filename)}${record.is_chunked ? `<span class="badge-chunks">${record.chunk_count} parts</span>` : ''}</div>
+    <div class="fsub"><span>${dateLabel}</span><span>${sizeLabel}</span></div>
+  `;
+
+  card.appendChild(thumb);
+  card.appendChild(meta);
+
+  card.addEventListener('click', () => {
+    if (selectionMode) {
+      toggleSelection(record.id);
+    } else if (previewable) {
+      const list = (siblingList || files).filter(isPreviewable);
+      openLightbox(record, list);
+    }
+  });
+
+  return card;
+}
+
+/* =============================================================
+   SELECTION MODE
+   ============================================================= */
+selectToggleBtn.addEventListener('click', () => {
+  if (selectionMode) {
+    exitSelectionMode();
+  } else {
+    selectionMode = true;
+    selectToggleBtn.classList.add('active');
+    render();
+  }
+});
+
+selectAllBtn.addEventListener('click', () => {
+  if (!currentVisibleFiles.length) return;
+  const allSelected = currentVisibleFiles.every(f => selectedIds.has(f.id));
+  if (allSelected) {
+    currentVisibleFiles.forEach(f => selectedIds.delete(f.id));
+  } else {
+    currentVisibleFiles.forEach(f => selectedIds.add(f.id));
+  }
+  render();
+  updateBulkBar();
+});
+
+function exitSelectionMode() {
+  selectionMode = false;
+  selectedIds.clear();
+  selectToggleBtn.classList.remove('active');
+  updateBulkBar();
+}
+
+function toggleSelection(id) {
+  if (selectedIds.has(id)) selectedIds.delete(id);
+  else selectedIds.add(id);
+  render();
+  updateBulkBar();
+}
+
+function updateBulkBar() {
+  const n = selectedIds.size;
+  bulkBar.classList.toggle('show', n > 0);
+  bulkCount.textContent = `${n} selected`;
+}
+
+bulkCancelBtn.addEventListener('click', exitSelectionMode);
+
+bulkDeleteBtn.addEventListener('click', async () => {
+  const ids = Array.from(selectedIds);
+  if (!ids.length) return;
+  if (!confirm(`Delete ${ids.length} file${ids.length === 1 ? '' : 's'}? This removes them from Discord permanently.`)) return;
+
+  showDeleteStatus(`Deleting ${ids.length} file${ids.length === 1 ? '' : 's'}…`);
+  try {
+    const res = await fetch('/api/files/bulk-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+    const body = await res.json();
+    if (body.failed && body.failed.length) {
+      finishDeleteStatus(`${body.deleted.length} deleted, ${body.failed.length} failed`, true);
+      showToast(`${body.deleted.length} deleted, ${body.failed.length} failed`, 'error');
+    } else {
+      finishDeleteStatus(`Deleted ${body.deleted.length} file${body.deleted.length === 1 ? '' : 's'}`, false);
+      showToast(`Deleted ${body.deleted.length} file${body.deleted.length === 1 ? '' : 's'}`, 'success');
+    }
+    exitSelectionMode();
+    refreshAll();
+  } catch (err) {
+    finishDeleteStatus('Bulk delete failed', true);
+    showToast('Bulk delete failed', 'error');
+  }
+});
+
+bulkDownloadBtn.addEventListener('click', async () => {
+  const ids = Array.from(selectedIds);
+  if (!ids.length) return;
+
+  try {
+    const res = await fetch('/api/files/bulk-download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+    if (!res.ok) throw new Error('Download failed');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'nimbus_selected_files.zip';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast(`Downloading ${ids.length} file${ids.length === 1 ? '' : 's'} as a zip`, 'success');
+  } catch (err) {
+    showToast('Bulk download failed', 'error');
+  }
+});
+
+/* =============================================================
+   LIGHTBOX PREVIEW — click any photo/video to open it full size
+   ============================================================= */
+function openLightbox(record, siblingList) {
+  lightboxList = siblingList && siblingList.length ? siblingList : [record];
+  lightboxIndex = lightboxList.findIndex(r => r.id === record.id);
+  if (lightboxIndex === -1) lightboxIndex = 0;
+  renderLightboxCurrent();
+  lightbox.classList.add('show');
+}
+
+function renderLightboxCurrent() {
+  const record = lightboxList[lightboxIndex];
+  if (!record) return;
+  const url = previewUrlFor(record);
+  lightboxInner.innerHTML = isVideo(record.filename)
+    ? `<video src="${url}" controls autoplay></video>`
+    : `<img src="${url}" alt="${escapeHtml(record.filename)}" />`;
+  lightboxCaption.textContent = record.filename;
+  const multi = lightboxList.length > 1;
+  lightboxPrev.style.display = multi ? 'flex' : 'none';
+  lightboxNext.style.display = multi ? 'flex' : 'none';
+}
+
+function closeLightbox() {
+  lightbox.classList.remove('show');
+  lightboxInner.innerHTML = ''; // stop any playing video
+}
+
+function lightboxStep(delta) {
+  if (!lightboxList.length) return;
+  lightboxIndex = (lightboxIndex + delta + lightboxList.length) % lightboxList.length;
+  renderLightboxCurrent();
+}
+
+lightboxClose.addEventListener('click', closeLightbox);
+lightboxPrev.addEventListener('click', () => lightboxStep(-1));
+lightboxNext.addEventListener('click', () => lightboxStep(1));
+lightbox.addEventListener('click', (e) => { if (e.target === lightbox) closeLightbox(); });
+document.addEventListener('keydown', (e) => {
+  if (!lightbox.classList.contains('show')) return;
+  if (e.key === 'Escape') closeLightbox();
+  if (e.key === 'ArrowLeft') lightboxStep(-1);
+  if (e.key === 'ArrowRight') lightboxStep(1);
+});
+
+/* =============================================================
+   NEW FOLDER
+   ============================================================= */
+newFolderBtn.addEventListener('click', async () => {
+  const name = prompt('Name your new folder:');
+  if (!name || !name.trim()) return;
+  const path = currentFolderPath ? `${currentFolderPath}/${name.trim()}` : name.trim();
+
+  try {
+    const res = await fetch('/api/folders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+    const body = await res.json();
+    if (!res.ok) {
+      showToast(body.error || 'Could not create folder', 'error');
+      return;
+    }
+    showToast(`Created folder "${name.trim()}"`, 'success');
+    await refreshAll();
+  } catch (err) {
+    showToast('Could not create folder', 'error');
+  }
+});
+
+/* =============================================================
+   FAB + FILE PICKERS
+   ============================================================= */
+fabButton.addEventListener('click', () => fileInput.click());
+uploadFolderBtn.addEventListener('click', () => folderInput.click());
+uploadHereBtn.addEventListener('click', () => fileInput.click());
+
+fileInput.addEventListener('change', (e) => {
+  handleFileSelection(Array.from(e.target.files));
+  fileInput.value = '';
+});
+
+folderInput.addEventListener('change', (e) => {
+  handleFileSelection(Array.from(e.target.files));
+  folderInput.value = '';
+});
+
+function handleFileSelection(fileList) {
+  if (!fileList.length) return;
+  const source = currentView;                                        // which tab triggered this
+  const folderContext = currentView === 'folders' ? currentFolderPath : '';
+  if (batchDone >= batchTotal) { batchTotal = 0; batchDone = 0; }     // previous batch fully settled — start fresh
+  batchTotal += fileList.length;
+  openUploadPanel();
+  uploadBatch(fileList, source, folderContext, 3);
+}
+
+/* =============================================================
+   UPLOAD MANAGER — panel open/close
+   ============================================================= */
+function openUploadPanel() {
+  uploadPanel.classList.add('open');
+  panelScrim.classList.add('show');
+}
+function closeUploadPanel() {
+  uploadPanel.classList.remove('open');
+  panelScrim.classList.remove('show');
+}
+closePanelBtn.addEventListener('click', closeUploadPanel);
+panelScrim.addEventListener('click', closeUploadPanel);
+uploadingNavItem.addEventListener('click', openUploadPanel);
+
+function updateUploadingNav() {
+  if (activeUploads > 0) {
+    uploadingNavItem.classList.add('show');
+    const batchLabel = batchTotal > 0 ? ` · ${batchDone}/${batchTotal} files` : '';
+    uploadingLabel.textContent = `Uploading (${activeUploads})${batchLabel}`;
+  } else {
+    uploadingNavItem.classList.remove('show');
+  }
+  const remaining = Math.max(0, batchTotal - batchDone);
+  queueSummary.textContent = remaining > 0 ? `${remaining} remaining` : 'Queue empty';
+  queueDone.textContent = batchTotal > 0 ? `${batchDone}/${batchTotal} uploaded` : `${completedInSession} complete`;
+}
+
+/* =============================================================
+   BATCH UPLOAD — small parallel chunks of the *file list*, each
+   file gets its own XMLHttpRequest so individual progress bars
+   can be tracked. (Not to be confused with the backend's 9MB
+   Discord *byte* chunking, which happens per-file server-side.)
+   ============================================================= */
+async function uploadBatch(fileList, source, folderContext, concurrency = 3) {
+  for (let i = 0; i < fileList.length; i += concurrency) {
+    const batch = fileList.slice(i, i + concurrency);
+    await Promise.all(batch.map(file =>
+      uploadSingleFile(file, source, folderContext).then(() => {
+        batchDone++;
+        updateUploadingNav();
+        refreshAll();  // per-file, not just end-of-batch, so counts/lists update live as each one lands
+      })
+    ));
+  }
+}
+
+function createUploadCard(filename) {
+  const el = document.createElement('div');
+  el.className = 'upload-card';
+  el.innerHTML = `
+    <div class="upload-card-top">
+      <div class="upload-card-name" title="${escapeHtml(filename)}">${escapeHtml(filename)}</div>
+      <div class="upload-card-pct">0%</div>
+    </div>
+    <div class="progress-track"><div class="progress-fill"></div></div>
+    <div class="upload-card-status-row">
+      <div class="upload-card-status">Uploading…</div>
+      <button class="retry-btn" style="display:none;"><i class="fa-solid fa-rotate-right"></i> Try again</button>
+    </div>
+  `;
+  return {
+    el,
+    fill: el.querySelector('.progress-fill'),
+    pct: el.querySelector('.upload-card-pct'),
+    status: el.querySelector('.upload-card-status'),
+    retryBtn: el.querySelector('.retry-btn'),
+  };
+}
+
+function markCardError(card, message, file) {
+  card.fill.classList.add('error');
+  card.status.textContent = message;
+  card.status.classList.add('error');
+  card.retryBtn.style.display = 'inline-flex';
+  if (file) showToast(`Failed to upload ${file.name}`, 'error');
+}
+
+function resetCardForRetry(card) {
+  card.retryBtn.style.display = 'none';
+  card.fill.classList.remove('error', 'done');
+  card.status.classList.remove('error', 'done');
+  card.fill.style.width = '0%';
+  card.pct.textContent = '0%';
+  card.status.textContent = 'Retrying…';
+}
+
+function targetRelativePath(file, folderContext) {
+  if (file.webkitRelativePath) return file.webkitRelativePath;
+  if (folderContext) return `${folderContext}/${file.name}`;
+  return file.name;
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function formatEta(seconds) {
+  if (!isFinite(seconds) || seconds < 0) return '';
+  if (seconds < 1) return '<1s';
+  if (seconds < 60) return `${Math.ceil(seconds)}s`;
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return `${m}m ${s}s`;
+}
+
+// Kicks off a brand-new upload card for a file (used for the first attempt
+// of each file in a batch). Wires up the "Try again" button so a later
+// failure can be retried in place without re-selecting the file.
+function uploadSingleFile(file, source, folderContext) {
+  const card = createUploadCard(file.name);
+  uploadPanelBody.prepend(card.el);
+  card.retryBtn.addEventListener('click', () => {
+    resetCardForRetry(card);
+    performUpload(file, source, folderContext, card).then(() => refreshAll());
+  });
+  return performUpload(file, source, folderContext, card);
+}
+
+// Two live phases, mapped onto one continuous 0-100% bar:
+//   Phase 1 (0-50%): the browser sending the raw file to our server.
+//   Phase 2 (50-100%): our server pushing each Discord chunk — tracked by
+//   polling /api/upload/status so large files don't stall at "100%" while
+//   Discord upload is still actually happening. The server auto-retries
+//   Discord rate limits (429s) on its own; this only needs to show a
+//   manual "Try again" button if the upload still ultimately fails.
+function performUpload(file, source, folderContext, card) {
+  return new Promise((resolve) => {
+    activeUploads++;
+    updateUploadingNav();
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('relative_path', targetRelativePath(file, folderContext));
+    formData.append('source', source);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/upload', true);
+
+    let lastLoaded = 0, lastTime = performance.now(), speedBps = 0;
+
+    xhr.upload.onprogress = (e) => {
+      if (!e.lengthComputable) return;
+      const now = performance.now();
+      const dt = (now - lastTime) / 1000;
+      if (dt > 0.15) {
+        speedBps = (e.loaded - lastLoaded) / dt;
+        lastLoaded = e.loaded;
+        lastTime = now;
+      }
+      const overall = Math.min(50, (e.loaded / e.total) * 50);
+      card.fill.style.width = overall + '%';
+      card.pct.textContent = Math.round(overall) + '%';
+      const remaining = e.total - e.loaded;
+      const eta = speedBps > 0 ? remaining / speedBps : null;
+      card.status.textContent = `Uploading… ${formatBytes(e.loaded)} / ${formatBytes(e.total)}`
+        + (eta !== null ? ` · ${formatEta(eta)} left` : '');
+    };
+
+    xhr.onload = async () => {
+      if (xhr.status === 202) {
+        let body = {};
+        try { body = JSON.parse(xhr.responseText); } catch { /* ignore */ }
+        card.fill.style.width = '50%';
+        card.pct.textContent = '50%';
+        card.status.textContent = 'Sending to Discord…';
+        await pollUploadStatus(body.upload_id, card, file);
+      } else {
+        markCardError(card, 'Upload failed — ' + safeErrorMessage(xhr.responseText), file);
+      }
+      activeUploads--;
+      updateUploadingNav();
+      resolve();
+    };
+
+    xhr.onerror = () => {
+      activeUploads--;
+      markCardError(card, 'Network error during upload', file);
+      updateUploadingNav();
+      resolve();
+    };
+
+    xhr.send(formData);
+  });
+}
+
+// Polls the server-side job (Discord chunk pushes) until it's done or
+// errors, updating the same upload card with live bytes-sent + ETA. The
+// server already retries Discord rate limits (429s) on its own — while
+// that's happening, `prog.note` carries a live "retrying in Ns" message
+// so the wait is visible instead of looking stalled. If it still fails
+// after those automatic retries are exhausted, the card gets a manual
+// "Try again" button.
+async function pollUploadStatus(uploadId, card, file) {
+  if (!uploadId) {
+    markCardError(card, 'Upload failed — no job id returned', file);
+    return;
+  }
+
+  let lastBytes = 0, lastTime = performance.now(), speedBps = 0;
+
+  while (true) {
+    let prog;
+    try {
+      const res = await fetch(`/api/upload/status/${uploadId}`);
+      prog = await res.json();
+    } catch (err) {
+      await sleep(700);
+      continue;
+    }
+
+    if (prog.status === 'done') {
+      card.fill.classList.add('done');
+      card.fill.style.width = '100%';
+      card.pct.textContent = '100%';
+      card.status.textContent = 'Uploaded to Discord CDN';
+      card.status.classList.add('done');
+      completedInSession++;
+      return;
+    }
+
+    if (prog.status === 'error') {
+      markCardError(card, 'Upload failed — ' + (prog.error || 'Unknown error'), file);
+      return;
+    }
+
+    if (prog.note) {
+      // The server is auto-retrying a Discord rate limit right now —
+      // surface that instead of the generic "Sending to Discord…" text
+      // so a paused-looking bar doesn't feel broken.
+      card.status.textContent = prog.note;
+    } else {
+      const now = performance.now();
+      const dt = (now - lastTime) / 1000;
+      if (dt > 0.15) {
+        speedBps = (prog.bytes_uploaded - lastBytes) / dt;
+        lastBytes = prog.bytes_uploaded;
+        lastTime = now;
+      }
+      const remaining = prog.total_bytes - prog.bytes_uploaded;
+      const eta = speedBps > 0 ? remaining / speedBps : null;
+      const chunkLabel = prog.chunk_total > 1 ? ` (part ${prog.chunk_index}/${prog.chunk_total})` : '';
+      card.status.textContent = `Sending to Discord…${chunkLabel} ${formatBytes(prog.bytes_uploaded)} / ${formatBytes(prog.total_bytes)}`
+        + (eta !== null && eta > 0 ? ` · ~${formatEta(eta)} left` : '');
+    }
+
+    const frac = prog.total_bytes > 0 ? prog.bytes_uploaded / prog.total_bytes : 0;
+    const overall = 50 + Math.min(50, frac * 50);
+    card.fill.style.width = overall + '%';
+    card.pct.textContent = Math.round(overall) + '%';
+
+    await sleep(500);
+  }
+}
+
+function safeErrorMessage(responseText) {
+  try {
+    const parsed = JSON.parse(responseText);
+    return parsed.error || 'Unknown error';
+  } catch {
+    return 'Unknown error';
+  }
+}
+
+/* =============================================================
+   DOWNLOAD / DELETE (single file)
+   ============================================================= */
+function downloadFile(id) {
+  window.location.href = `/api/files/${id}/download`;
+}
+
+async function deleteFile(id) {
+  const record = files.find(f => f.id === id);
+  if (!record) return;
+  if (!confirm(`Delete "${record.filename}"? This removes it from Discord permanently.`)) return;
+
+  showDeleteStatus(`Deleting "${record.filename}"…`);
+  try {
+    const res = await fetch(`/api/files/${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || 'Delete failed');
+    }
+    finishDeleteStatus(`Deleted "${record.filename}"`, false);
+    showToast(`Deleted ${record.filename}`, 'success');
+    selectedIds.delete(id);
+    refreshAll();
+  } catch (err) {
+    finishDeleteStatus(`Failed to delete "${record.filename}"`, true);
+    showToast(err.message, 'error');
+  }
+}
+
+/* =============================================================
+   TOASTS
+   ============================================================= */
+/* =============================================================
+   LIVE DELETE STATUS BAR — shows while a delete (single, bulk, or
+   folder) is actually in flight, so it's clear something's happening
+   rather than the UI just going quiet.
+   ============================================================= */
+let deleteStatusHideTimer = null;
+
+function showDeleteStatus(message) {
+  clearTimeout(deleteStatusHideTimer);
+  deleteStatusBar.classList.remove('success', 'error');
+  deleteStatusIcon.className = 'fa-solid fa-spinner fa-spin';
+  deleteStatusText.textContent = message;
+  deleteStatusBar.classList.add('show');
+}
+
+function finishDeleteStatus(message, isError) {
+  deleteStatusText.textContent = message;
+  deleteStatusIcon.className = isError ? 'fa-solid fa-triangle-exclamation' : 'fa-solid fa-circle-check';
+  deleteStatusBar.classList.toggle('error', !!isError);
+  deleteStatusBar.classList.toggle('success', !isError);
+  deleteStatusHideTimer = setTimeout(() => deleteStatusBar.classList.remove('show'), 2200);
+}
+
+function showToast(message, type = '') {
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  toastStack.appendChild(toast);
+  setTimeout(() => toast.remove(), 3800);
+}
+</script>
+</body>
+</html>
