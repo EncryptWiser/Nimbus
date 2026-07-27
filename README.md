@@ -36,6 +36,9 @@ Discord webhooks are a well-known trick for free file hosting, but most implemen
 - 📈 **Live storage widget** — total bytes, total chunk count, and a segmented Images/Videos/Docs/Audio breakdown, updated in real time.
 - 🎨 **Dark, purpose-built UI** — no UI framework, no CSS framework — a hand-built dark theme with a slide-out upload manager and floating action button.
 
+- <img width="1908" height="873" alt="image" src="https://github.com/user-attachments/assets/4ba5995a-66c3-4f4e-b993-532cb82c04c9" />
+
+
 ## Architecture
 
 ### System overview
