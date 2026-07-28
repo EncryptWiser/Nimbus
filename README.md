@@ -11,7 +11,8 @@ Nimbus gives you a Google Photos/Dropbox-style interface — galleries, nested f
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](#contributing)
 [![Stars](https://img.shields.io/github/stars/EncryptWiser/Nimbus?style=social)](https://github.com/EncryptWiser/Nimbus/stargazers)
 
-<img width="1913" height="888" alt="Screenshot 2026-07-27 230401" src="https://github.com/user-attachments/assets/01b5e6fc-db59-434d-a4a0-d876e2b5363b" />
+<img width="1912" height="880" alt="image" src="https://github.com/user-attachments/assets/01a71114-380e-4e02-b4ab-4f93761f8aa3" />
+
 
 
 
