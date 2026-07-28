@@ -11,6 +11,8 @@ Nimbus gives you a Google Photos/Dropbox-style interface — galleries, nested f
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](#contributing)
 [![Stars](https://img.shields.io/github/stars/EncryptWiser/Nimbus?style=social)](https://github.com/EncryptWiser/Nimbus/stargazers)
 
+<img width="1906" height="817" alt="Screenshot 2026-07-27 221401" src="https://github.com/user-attachments/assets/4ce17fa9-593a-44d3-b544-cebc471f6ec6" />
+
 
 ## Why Nimbus
 
@@ -35,9 +37,6 @@ Discord webhooks are a well-known trick for free file hosting, but most implemen
 - 🗑️ **Live delete status** — a status indicator confirms exactly when files (single, bulk, or a whole folder) are being deleted and when it's done.
 - 📈 **Live storage widget** — total bytes, total chunk count, and a segmented Images/Videos/Docs/Audio breakdown, updated in real time.
 - 🎨 **Dark, purpose-built UI** — no UI framework, no CSS framework — a hand-built dark theme with a slide-out upload manager and floating action button.
-
-- <img width="1908" height="873" alt="image" src="https://github.com/user-attachments/assets/4ba5995a-66c3-4f4e-b993-532cb82c04c9" />
-
 
 ## Architecture
 
@@ -155,8 +154,29 @@ Folders are stored as **explicit entities**, not just inferred from file paths. 
 | Frontend | **Vanilla HTML/CSS/JS** | No build step, no framework lock-in, trivial to audit |
 | Storage | **Discord webhook + CDN** | Free, no infrastructure to manage |
 | Metadata | **Flat-file JSON** (`database.json`) | Zero setup, human-readable, fine at personal/small-team scale |
-| Image metadata | **Pillow** | EXIF `DateTimeOriginal` extraction for date-based sorting |
+| Image metadata | **Pillow** (optional) | EXIF `DateTimeOriginal` extraction for date-based sorting |
 | HTTP | **requests** | Talking to Discord's webhook API |
+
+## Runs natively — nothing extra to install
+
+Nimbus is intentionally low-tech. There's no build step, no bundler, no
+container runtime, and no separate database server to stand up. If you have
+Python and pip, you have everything Nimbus needs:
+
+- **No Docker required.** Just `python app.py`.
+- **No Node.js, npm, or bundler.** The entire frontend is one plain
+  `index.html` file — open a browser tab and it works. No `webpack`,
+  `vite`, `npm install`, or `node_modules` anywhere in this project.
+- **No database server.** Metadata lives in a single local `database.json`
+  file — no PostgreSQL, MySQL, MongoDB, or Redis to install or configure.
+- **No cloud account beyond Discord itself.** No AWS/GCP/Azure signup, no
+  paid tier, no API keys other than the one Discord webhook URL you create
+  for free.
+- **Runs on your own machine (or any box you control)** — Windows, macOS,
+  or Linux, anywhere Python 3.9+ runs.
+
+In short: `git clone`, `pip install flask requests pillow`, `python app.py`.
+That's the entire setup.
 
 ## Getting started
 
@@ -173,11 +193,23 @@ cd Nimbus
 pip install flask requests pillow
 ```
 
+> Pillow (used for EXIF-based "Captured Date" sorting) is optional — Nimbus
+> runs fine without it, just falling back to upload time for date sorting.
+
 ### 2. Create a Discord webhook
 
 1. In a Discord server you control, create a channel dedicated to storage (recommended — it will fill up with file messages).
 2. Channel settings → **Integrations** → **Webhooks** → **New Webhook**.
 3. Name it, then **Copy Webhook URL**.
+
+> [!WARNING]
+> **Keep this server private — don't add or invite anyone to it.** Nimbus's
+> folders, permissions, and "who can see what" only exist inside the app.
+> Discord itself doesn't know about any of that — so anyone who's a member
+> of the server (or has an invite link to it) can open the storage channel
+> and see, open, and download **every file you've ever uploaded**, in full,
+> with no restrictions. Use a server only you belong to, don't share invite
+> links to it, and treat the webhook URL itself as a secret too.
 
 It looks like:
 ```
@@ -241,10 +273,12 @@ All routes are relative to `http://localhost:5000`.
 ```
 Nimbus/
 ├── app.py                 # Flask backend — all API routes + Discord/EXIF/chunk logic
-├── database.json          # Auto-created on first run — the metadata index
-├── temp_storage/          # Scratch space during upload processing (auto-cleaned)
+├── requirements.txt       # Python dependencies (pip install -r requirements.txt)
 ├── templates/
 │   └── index.html         # Entire frontend — markup, styles, and JS in one file
+├── temp_storage/          # Scratch space during upload processing (auto-cleaned; kept via .gitkeep, not committed contents)
+├── database.json          # Auto-created on first run — NOT committed (see .gitignore)
+├── .gitignore
 ├── LICENSE
 └── README.md
 ```
@@ -270,10 +304,39 @@ Nimbus's core logic — chunk splitting and byte-perfect reassembly, Discord rat
 - **Preview Range requests fetch whole chunks.** Scrubbing a large, split video pulls the full ≤9.99 MB chunk containing the requested byte range, not a byte-precise sub-fetch — correct, just not maximally bandwidth-efficient.
 - **Depends on Discord's webhook/CDN behavior**, which isn't an officially supported "storage product" and could change.
 
-## Security & Discord ToS considerations
+## Security, privacy & Discord ToS considerations
+
+### Your data stays yours
+
+Nimbus has no backend operated by its maintainers, no telemetry, and no
+analytics — because there's nothing here *to* collect from. Concretely:
+
+- **There is no "Nimbus server."** This is source code you run yourself.
+  When you `python app.py`, the only server that exists is the one on your
+  own machine — nobody else's infrastructure is involved.
+- **No accounts, no sign-up, no phone-home.** Nimbus doesn't ask you to log
+  in to anything except your own Discord webhook, and it makes no network
+  calls except to Discord's API/CDN (to store/fetch your files) and to
+  your own browser (to serve the UI). There's no analytics SDK, crash
+  reporter, or update-checker quietly calling home in the background —
+  check `app.py` yourself; every `requests.*` call in it targets Discord.
+- **All metadata stays local.** Filenames, folder structure, upload dates —
+  everything Nimbus knows about your files lives in your own local
+  `database.json`, on your own disk. The maintainers of this project never
+  see it, store it, or have any way to access it.
+- **The maintainers have no access to your files.** Your files live in a
+  Discord channel you control, addressed by a webhook URL only you hold.
+  Nobody involved in building Nimbus can see, download, or is otherwise
+  aware of what you store with it.
+
+In short: this is self-hosted software, not a hosted service — "your data"
+never leaves your own machine and your own Discord server.
+
+### Known security tradeoffs
 
 Be transparent with yourself and anyone you share this with:
 
+- **No authentication.** Anyone who can reach the server can upload, browse, download, and delete files. Fine for local/personal use; add your own auth layer (e.g. a reverse proxy with basic auth) before exposing this beyond `localhost`.
 - **Treat your webhook URL as a secret.** Anyone with it can post to (and, via Discord's API directly, delete from) your channel.
 - **Using Discord as a storage backend is a community-known pattern, not an officially sanctioned Discord feature.** Automated, high-volume use of webhooks in ways not intended for normal chat use may be subject to Discord's Terms of Service and could be rate-limited or restricted at Discord's discretion. Use a server/channel you control, keep volume reasonable, and don't rely on this for anything business-critical.
 - **No end-to-end encryption.** Files are visible to anyone with access to the Discord channel/server independent of this app.
